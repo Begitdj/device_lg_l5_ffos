@@ -1,0 +1,6 @@
+# Wi-Fi
+wifi.interface=wlan0
+wlan.driver.status=ok
+
+# Display Model Name
+ro.product.display_model=LG Optimus L5  @lg5_dev

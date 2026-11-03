@@ -1,0 +1,44 @@
+diff --git a/rootdir/etc/init.qcom.rc b/rootdir/etc/init.qcom.rc
+index 2e4a38d680..ddbc3f3c50 100755
+--- a/rootdir/etc/init.qcom.rc
++++ b/rootdir/etc/init.qcom.rc
+@@ -277,10 +277,9 @@ service qmiproxy /system/bin/qmiproxy
+ 
+ # QMUX must be in multiple groups to support external process connections
+ service qmuxd /system/bin/qmuxd
+-    class main
++    class core
+     user radio
+     group radio audio bluetooth gps qcom_diag
+-    disabled
+ 
+ service netmgrd /system/bin/netmgrd
+     class main
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index 59ac251d35..55221e4d25 100755
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -111,14 +111,7 @@ on fs
+     mount yaffs2 mtd@persist /persist nosuid nodev
+ 
+ on emmc-fs
+-# mount mmc partitions
+-    wait /dev/block/mmcblk0p12
+-    mount ext4 /dev/block/mmcblk0p12 /system rw barrier=1
+-    wait /dev/block/mmcblk0p13
+-    exec /system/bin/e2fsck -p /dev/block/mmcblk0p13
+-    mount ext4 /dev/block/mmcblk0p13 /data nosuid nodev barrier=1 noauto_da_alloc
+-    mount ext4 /dev/block/mmcblk0p14 /persist nosuid nodev barrier=1
+-    mount ext4 /dev/block/mmcblk0p15 /cache nosuid nodev barrier=1
++# mount mmc partitions defined in init.${ro.hardware}.rc
+ 
+ on post-fs
+     # once everything is setup, no need to modify /
+@@ -440,6 +433,7 @@ service surfaceflinger /system/bin/surfaceflinger
+ 
+ service zygote /system/bin/app_process -Xzygote /system/bin --zygote --start-system-server
+     class main
++    disabled
+     socket zygote stream 660 root system
+     onrestart write /sys/android_power/request_state wake
+     onrestart write /sys/power/state on

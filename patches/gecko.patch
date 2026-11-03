@@ -1,0 +1,106 @@
+diff --git a/b2g/chrome/content/settings.js b/b2g/chrome/content/settings.js
+index 44d387e11..498d2f6c4 100644
+--- a/b2g/chrome/content/settings.js
++++ b/b2g/chrome/content/settings.js
+@@ -145,7 +145,7 @@ Components.utils.import('resource://gre/modules/ctypes.jsm');
+   let product_model = null;
+   let build_number = null;
+ #ifdef MOZ_WIDGET_GONK
+-    hardware_info = libcutils.property_get('ro.hardware');
++    hardware_info = libcutils.property_get('ro.product.model') || libcutils.property_get('ro.hardware');
+     firmware_revision = libcutils.property_get('ro.firmware_revision');
+     product_model = libcutils.property_get('ro.product.model');
+     build_number = libcutils.property_get('ro.build.version.incremental');
+diff --git a/hal/gonk/GonkSensor.cpp b/hal/gonk/GonkSensor.cpp
+index 7e6b2bade..55763f7dc 100644
+--- a/hal/gonk/GonkSensor.cpp
++++ b/hal/gonk/GonkSensor.cpp
+@@ -176,8 +176,11 @@ PollSensors()
+     }
+ 
+     for (int i = 0; i < n; ++i) {
+-      // FIXME: bug 802004, add proper support for the magnetic field sensor.
+-      if (buffer[i].type == SENSOR_TYPE_MAGNETIC_FIELD)
++      // Only process accelerometer / rotation / orientation (gyro)
++      if (buffer[i].type != SENSOR_TYPE_ACCELEROMETER &&
++          buffer[i].type != SENSOR_TYPE_ORIENTATION &&
++          buffer[i].type != SENSOR_TYPE_ROTATION_VECTOR &&
++          buffer[i].type != SENSOR_TYPE_GYROSCOPE)
+         continue;
+ 
+       // Bug 938035, transfer HAL data for orientation sensor to meet w3c spec
+@@ -239,6 +242,12 @@ SwitchSensor(bool aActivate, sensor_t aSensor, pthread_t aThreadId)
+ static void
+ SetSensorState(SensorType aSensor, bool activate)
+ {
++  if (aSensor != SENSOR_ACCELERATION &&
++      aSensor != SENSOR_ORIENTATION &&
++      aSensor != SENSOR_GYROSCOPE) {
++    return;
++  }
++
+   int type = HalSensorToHardwareSensor(aSensor);
+   const sensor_t* sensors = nullptr;
+ 
+diff --git a/media/libopus/moz.build b/media/libopus/moz.build
+index 2607a1965..e605275d0 100644
+--- a/media/libopus/moz.build
++++ b/media/libopus/moz.build
+@@ -92,9 +92,11 @@ if CONFIG['CPU_ARCH'] == 'arm' and CONFIG['GNU_AS']:
+     if CONFIG['MOZ_OPTIMIZE']:
+       CFLAGS += [
+         '-O3',
++        '-fno-tree-vectorize',
+       ]
+       CXXFLAGS += [
+         '-O3',
++        '-fno-tree-vectorize',
+       ]
+ 
+ # Suppress warnings in third-party code.
+diff --git a/mfbt/ArrayUtils.h b/mfbt/ArrayUtils.h
+index b3eebbbd5..53832d707 100644
+--- a/mfbt/ArrayUtils.h
++++ b/mfbt/ArrayUtils.h
+@@ -175,7 +175,7 @@ char (&ArrayLengthHelper(T (&array)[N]))[N];
+  * can't call ArrayLength() when it is not a C++11 constexpr function.
+  */
+ #ifdef __cplusplus
+-#  define MOZ_ARRAY_LENGTH(array)   sizeof(mozilla::detail::ArrayLengthHelper(array))
++#  define MOZ_ARRAY_LENGTH(array)   (sizeof(array)/sizeof((array)[0]))
+ #else
+ #  define MOZ_ARRAY_LENGTH(array)   (sizeof(array)/sizeof((array)[0]))
+ #endif
+diff --git a/widget/gonk/libui/InputReader.cpp b/widget/gonk/libui/InputReader.cpp
+index c8bd21353..55be7ad6a 100644
+--- a/widget/gonk/libui/InputReader.cpp
++++ b/widget/gonk/libui/InputReader.cpp
+@@ -6006,6 +6006,14 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, bool* outHavePointerIds) {
+             continue;
+         }
+ 
++        // Handle devices (such as Melfas MCS8000 / MMS136) that report touch release
++        // by sending touchMajor <= 0 (or pressure <= 0) for the contact.
++        // A contact with 0 or negative contact area or pressure is not touching the screen.
++        if ((mRawPointerAxes.touchMajor.valid && inSlot->getTouchMajor() <= 0)
++                || (mRawPointerAxes.pressure.valid && inSlot->getPressure() <= 0)) {
++            continue;
++        }
++
+         if (outCount >= MAX_POINTERS) {
+ #if DEBUG_POINTERS
+             ALOGD("MultiTouch device %s emitted more than maximum of %d pointers; "
+diff --git a/widget/gonk/nsAppShell.cpp b/widget/gonk/nsAppShell.cpp
+index acc588ac2..be0630cc5 100644
+--- a/widget/gonk/nsAppShell.cpp
++++ b/widget/gonk/nsAppShell.cpp
+@@ -602,6 +602,9 @@ isExpired(const UserInputData& data)
+ {
+     uint64_t timeNowMs =
+         nanosecsToMillisecs(systemTime(SYSTEM_TIME_MONOTONIC));
++    if (timeNowMs <= data.timeMs) {
++        return false;
++    }
+     return (timeNowMs - data.timeMs) > kInputExpirationThresholdMs;
+ }
+ 

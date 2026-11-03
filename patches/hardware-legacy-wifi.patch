@@ -1,0 +1,15 @@
+diff --git a/wifi/wifi.c b/wifi/wifi.c
+index 051532c..e546922 100644
+--- a/wifi/wifi.c
++++ b/wifi/wifi.c
+@@ -698,6 +698,10 @@ int wifi_connect_to_supplicant()
+         return -1;
+     }
+ 
++    if (*iface == '\0') {
++        property_get("wifi.interface", iface, WIFI_TEST_INTERFACE);
++    }
++
+     if (access(IFACE_DIR, F_OK) == 0) {
+         snprintf(ifname, sizeof(ifname), "%s/%s", IFACE_DIR, iface);
+     } else {

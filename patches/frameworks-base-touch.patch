@@ -1,0 +1,19 @@
+diff --git a/services/input/InputReader.cpp b/services/input/InputReader.cpp
+index dd4ae2da2e..e57efa205d 100644
+--- a/services/input/InputReader.cpp
++++ b/services/input/InputReader.cpp
+@@ -5587,6 +5587,14 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, bool* outHavePointerIds) {
+             continue;
+         }
+ 
++        // Handle devices (such as Melfas MCS8000 / MMS136) that report touch release
++        // by sending touchMajor <= 0 (or pressure <= 0) for the contact.
++        // A contact with 0 or negative contact area or pressure is not touching the screen.
++        if ((mRawPointerAxes.touchMajor.valid && inSlot->getTouchMajor() <= 0)
++                || (mRawPointerAxes.pressure.valid && inSlot->getPressure() <= 0)) {
++            continue;
++        }
++
+         if (outCount >= MAX_POINTERS) {
+ #if DEBUG_POINTERS
+             LOGD("MultiTouch device %s emitted more than maximum of %d pointers; "
